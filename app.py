@@ -32,6 +32,9 @@ def clean_team_code(team_code):
     return team_code
 
 
+
+
+# comment
 def load_teams():
     base_dir = os.path.dirname(__file__)
     file_path = os.path.join(base_dir, 'nhl_team_caps.json')
@@ -168,7 +171,7 @@ def get_contract_summary(player_data, current_season_start=2024):
     }
 
 
-
+# changes
 @app.route("/player_details", methods=["GET"])
 def player_details():
     """
