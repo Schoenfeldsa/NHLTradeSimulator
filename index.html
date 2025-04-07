@@ -1,0 +1,194 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>NHL Trade Simulator</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col p-4">
+
+  <!-- Top Header -->
+  <header class="mb-6 text-center">
+    <h1 class="text-3xl font-bold text-gray-800">NHL TRADE SIM</h1>
+  </header>
+
+  <!-- Middle Row: Player 1 (left), Logo (center), Player 2 (right) -->
+  <div class="max-w-6xl w-full mx-auto flex items-start justify-center gap-4 mb-6">
+    <!-- Player 1 Box -->
+    <div class="w-1/3 bg-white rounded shadow p-4">
+      <h2 class="text-xl font-semibold mb-4">Search Player 1</h2>
+      <label for="playerA" class="block text-gray-700 mb-2">Select Player A:</label>
+      <select id="playerA" name="playerA" onchange="loadContractDetails('A')"
+      class="w-full border border-gray-300 rounded p-2 focus:outline-none focus:ring focus:ring-blue-300">
+      <option value="" selected disabled>Select a Player</option>
+      {% for name in player_names %}
+      <option value="{{ name }}">{{ name }}</option>
+     {% endfor %}
+  </select>
+      <!-- Contract details for Player A -->
+      <div id="contractA" class="mt-4 bg-gray-50 p-3 rounded border border-gray-200">
+        <p class="text-gray-500">Contract details will appear here.</p>
+      </div>
+    </div>
+
+    <!-- Center: NHL Logo -->
+    <div class="w-1/3 flex flex-col items-center justify-start">
+      <!-- Replace with your actual NHL logo source -->
+      <img src="https://th.bing.com/th/id/R.cbc956403de488007b65a234d5c2f90e?rik=FoSRznFfe44b8g&riu=http%3a%2f%2f1000logos.net%2fwp-content%2fuploads%2f2017%2f05%2fNHL-Logo.png&ehk=6oDfPLSMRUGdJOGepmO4NIA%2fZe6zbN%2fjbmbZnJkHIPw%3d&risl=&pid=ImgRaw&r=0" alt="NHL Logo" class="mb-4"/>
+    </div>
+
+    <!-- Player 2 Box -->
+    <div class="w-1/3 bg-white rounded shadow p-4">
+      <h2 class="text-xl font-semibold mb-4">Search Player 2</h2>
+      <label for="playerB" class="block text-gray-700 mb-2">Select Player B:</label>
+      <select id="playerB" name="playerB" onchange="loadContractDetails('B')"
+  class="w-full border border-gray-300 rounded p-2 focus:outline-none focus:ring focus:ring-blue-300">
+  <option value="" selected disabled>Select a Player</option>
+  {% for name in player_names %}
+    <option value="{{ name }}">{{ name }}</option>
+  {% endfor %}
+</select>
+      <!-- Contract details for Player B -->
+      <div id="contractB" class="mt-4 bg-gray-50 p-3 rounded border border-gray-200">
+        <p class="text-gray-500">Contract details will appear here.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Simulate Trade Button -->
+  <div class="mb-6 text-center">
+    <button type="button" onclick="simulateTrade()" 
+            class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded shadow">
+      Simulate Trade
+    </button>
+  </div>
+
+  <!-- Bottom Section: Two Team Columns (Before & After) -->
+  <div class="max-w-6xl w-full mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+    <!-- Team A Column -->
+    <div class="bg-white rounded shadow p-4">
+      <h3 class="text-xl font-semibold text-gray-800 mb-4">Team <span id="teamAName">A</span></h3>
+      <div class="grid grid-cols-2 gap-4">
+        <!-- Before Box -->
+        <div class="bg-gray-50 p-3 rounded border">
+          <h4 class="text-lg font-medium text-center text-red-600 mb-2">Before</h4>
+          <p class="text-gray-700"><strong>Active Cap:</strong> $<span id="teamAActiveBefore">0</span></p>
+          <p class="text-gray-700"><strong>Cap Space:</strong> $<span id="teamACapSpaceBefore">0</span></p>
+          <p class="text-gray-700"><strong>Total Cap:</strong> $<span id="teamATotalBefore">0</span></p>
+        </div>
+        <!-- After Box -->
+        <div class="bg-gray-50 p-3 rounded border">
+          <h4 class="text-lg font-medium text-center text-blue-600 mb-2">After</h4>
+          <p class="text-gray-700"><strong>Active Cap:</strong> $<span id="teamAActiveAfter">0</span></p>
+          <p class="text-gray-700"><strong>Cap Space:</strong> $<span id="teamACapSpaceAfter">0</span></p>
+          <p class="text-gray-700"><strong>Total Cap:</strong> $<span id="teamATotalAfter">0</span></p>
+        </div>
+      </div>
+      <div id="teamACompliance" class="mt-4 text-center text-lg"></div>
+    </div>
+
+    <!-- Team B Column -->
+    <div class="bg-white rounded shadow p-4">
+      <h3 class="text-xl font-semibold text-gray-800 mb-4">Team <span id="teamBName">B</span></h3>
+      <div class="grid grid-cols-2 gap-4">
+        <!-- Before Box -->
+        <div class="bg-gray-50 p-3 rounded border">
+          <h4 class="text-lg font-medium text-center text-red-600 mb-2">Before</h4>
+          <p class="text-gray-700"><strong>Active Cap:</strong> $<span id="teamBActiveBefore">0</span></p>
+          <p class="text-gray-700"><strong>Cap Space:</strong> $<span id="teamBCapSpaceBefore">0</span></p>
+          <p class="text-gray-700"><strong>Total Cap:</strong> $<span id="teamBTotalBefore">0</span></p>
+        </div>
+        <!-- After Box -->
+        <div class="bg-gray-50 p-3 rounded border">
+          <h4 class="text-lg font-medium text-center text-blue-600 mb-2">After</h4>
+          <p class="text-gray-700"><strong>Active Cap:</strong> $<span id="teamBActiveAfter">0</span></p>
+          <p class="text-gray-700"><strong>Cap Space:</strong> $<span id="teamBCapSpaceAfter">0</span></p>
+          <p class="text-gray-700"><strong>Total Cap:</strong> $<span id="teamBTotalAfter">0</span></p>
+        </div>
+      </div>
+      <div id="teamBCompliance" class="mt-4 text-center text-lg"></div>
+    </div>
+  </div>
+
+  <!-- Script: same logic for loadContractDetails() and simulateTrade() -->
+  <script>
+    function loadContractDetails(which) {
+      const selectId = (which === 'A') ? 'playerA' : 'playerB';
+      const displayId = (which === 'A') ? 'contractA' : 'contractB';
+      const playerName = document.getElementById(selectId).value;
+      fetch(`/player_details?player=${encodeURIComponent(playerName)}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.error) {
+            document.getElementById(displayId).innerHTML = `<p class="text-red-500">${data.error}</p>`;
+          } else {
+            document.getElementById(displayId).innerHTML = `
+              <p><strong>Years Left:</strong> ${data.years_left}</p>
+              <p><strong>Expires After:</strong> ${data.contract_expires}</p>
+              <p><strong>Cap Hit Final Year:</strong> ${data.cap_hit_final_year}</p>
+            `;
+          }
+        })
+        .catch(err => {
+          console.error(err);
+          document.getElementById(displayId).innerHTML = "<p class='text-red-500'>Error loading contract</p>";
+        });
+    }
+
+    function simulateTrade() {
+      const playerA = document.getElementById('playerA').value;
+      const playerB = document.getElementById('playerB').value;
+      
+      fetch('/simulate_trade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ player_a: playerA, player_b: playerB })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.error) {
+          alert(data.error);
+          return;
+        }
+        // Helper
+        function fmt(num) {
+          return Number(num).toLocaleString(undefined, {maximumFractionDigits: 0});
+        }
+        // Team A
+        const a = data.team_a;
+        document.getElementById('teamAName').textContent = a.team;
+        document.getElementById('teamAActiveBefore').textContent = fmt(a.active_cap_before);
+        document.getElementById('teamAActiveAfter').textContent = fmt(a.active_cap_after);
+        document.getElementById('teamACapSpaceBefore').textContent = fmt(a.cap_space_before);
+        document.getElementById('teamACapSpaceAfter').textContent = fmt(a.cap_space_after);
+        document.getElementById('teamATotalBefore').textContent = fmt(a.total_cap_before);
+        document.getElementById('teamATotalAfter').textContent = fmt(a.total_cap_after);
+        document.getElementById('teamACompliance').innerHTML = a.cap_compliant
+          ? "<span class='text-green-600'>Cap Compliant</span>"
+          : "<span class='text-red-600'>Over the Cap</span>";
+
+        // Team B
+        const b = data.team_b;
+        document.getElementById('teamBName').textContent = b.team;
+        document.getElementById('teamBActiveBefore').textContent = fmt(b.active_cap_before);
+        document.getElementById('teamBActiveAfter').textContent = fmt(b.active_cap_after);
+        document.getElementById('teamBCapSpaceBefore').textContent = fmt(b.cap_space_before);
+        document.getElementById('teamBCapSpaceAfter').textContent = fmt(b.cap_space_after);
+        document.getElementById('teamBTotalBefore').textContent = fmt(b.total_cap_before);
+        document.getElementById('teamBTotalAfter').textContent = fmt(b.total_cap_after);
+        document.getElementById('teamBCompliance').innerHTML = b.cap_compliant
+          ? "<span class='text-green-600'>Cap Compliant</span>"
+          : "<span class='text-red-600'>Over the Cap</span>";
+      })
+      .catch(error => {
+        console.error("Error:", error);
+        alert("Error occurred. See console for details.");
+      });
+    }
+  </script>
+
+</body>
+</html>
+
