@@ -6,6 +6,8 @@
   <meta charset="UTF-8">
   <title>NHL Trade Simulator</title>
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css" />
 </head>
 <body class="bg-gray-100 min-h-screen flex flex-col p-4">
 
@@ -26,7 +28,7 @@
       {% for name in player_names %}
       <option value="{{ name }}">{{ name }}</option>
      {% endfor %}
-  </select>
+    </select>
       <!-- Contract details for Player A -->
       <div id="contractA" class="mt-4 bg-gray-50 p-3 rounded border border-gray-200">
         <p class="text-gray-500">Contract details will appear here.</p>
@@ -114,6 +116,22 @@
 
   <!-- Script: same logic for loadContractDetails() and simulateTrade() -->
   <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      new Choices('#playerA', {
+        searchEnabled: true,
+        shouldSort: false,
+        placeholderValue: 'Select a Player',
+        searchPlaceholderValue: 'Search players...'
+      });
+      new Choices('#playerB', {
+        searchEnabled: true,
+        shouldSort: false,
+        placeholderValue: 'Select a Player',
+        searchPlaceholderValue: 'Search players...'
+      });
+    });
+  </script>
+  <script>
     function loadContractDetails(which) {
       const selectId = (which === 'A') ? 'playerA' : 'playerB';
       const displayId = (which === 'A') ? 'contractA' : 'contractB';
@@ -186,6 +204,8 @@
         console.error("Error:", error);
         alert("Error occurred. See console for details.");
       });
+
+      
     }
   </script>
 
