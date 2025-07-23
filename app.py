@@ -5,10 +5,22 @@ import os
 app = Flask(__name__)
 
 def parse_salary(salary_str):
-    """Converts '$13,250,000' to 13250000.0."""
+    """Converts '$13,250,000' to 13250000.0, but leaves numbers untouched."""
+    # If it’s already a number, just return it
+    if isinstance(salary_str, (int, float)):
+        return float(salary_str)
+
     if not salary_str:
         return 0.0
-    return float(salary_str.replace('$', '').replace(',', ''))
+
+    # Otherwise assume it's a string like "$13,250,000"
+    return float(
+        salary_str
+            .replace('$', '')
+            .replace(',', '')
+            .replace(' ', '')  # in case you have stray spaces
+    )
+
 
 def parse_team(team_str):
     """Player JSON is stored as 'TOR, C', return 'TOR' to match the team data. """
@@ -32,30 +44,36 @@ def clean_team_code(team_code):
     return team_code
 
 
-
-
-# comment
 def load_teams():
     base_dir = os.path.dirname(__file__)
-    file_path = os.path.join(base_dir, 'nhl_team_caps.json')
-    with open(file_path, 'r', encoding='utf-8') as f:
-        team_list = json.load(f)
+    path     = os.path.join(base_dir, "nhl_team_caps.json")
+    team_list = json.load(open(path, encoding="utf-8"))
 
     teams = {}
-    for team_info in team_list:
-        # Clean the team code
-        raw_team_code = team_info.get("team", "")
-        team_code = clean_team_code(raw_team_code)
-        teams[team_code] = team_info
+    for info in team_list:
+        raw_code = info.get("Team", "")
+        code     = clean_team_code(raw_code)
+
+        teams[code] = {
+            # JSON uses exactly "Active"
+            "active_cap":   parse_salary(info.get("Active",                 "0")),
+            # JSON uses "Cap SpaceAll"
+            "cap_space":    parse_salary(info.get("Cap SpaceAll",            "0")),
+            # JSON uses "Total CapAllocations"
+            "total_cap":    parse_salary(info.get("Total CapAllocations",    "0")),
+            # if you ever need LTIR or Injured, map those too:
+            # "ltir":         parse_salary(info.get("Long-Term IRAdjustment", "-")),
+            # "injured":      parse_salary(info.get("Injured",               "0")),
+        }
     return teams
 
 
-def simulate_trade(player_a, player_b, teams, league_cap=88000000.0):
+def simulate_trade(player_a, player_b, teams, league_cap=95500000.0):
     # 1. Identify each player's team & salary
-    team_a_code = parse_team(player_a["basic_info"]["team"])
-    team_b_code = parse_team(player_b["basic_info"]["team"])
-    salary_a = parse_salary(player_a["basic_info"]["salary"])
-    salary_b = parse_salary(player_b["basic_info"]["salary"])
+    team_a_code = parse_team(player_a.get("team", ""))
+    team_b_code = parse_team(player_b.get("team", ""))
+    salary_a = parse_salary(player_a.get("salary", "0"))
+    salary_b = parse_salary(player_b.get("salary", "0"))
 
     # 2. Parse each team’s current data
     team_a_data = teams.get(team_a_code, {})
@@ -162,7 +180,7 @@ def get_contract_summary(player_data, current_season_start=2024):
     else:
         # Example: if final_start_year=2027 and current_season_start=2024, that's 3 seasons left
         # but if the player is under contract *through* 2027-28, we might add 1
-        years_left = (final_start_year - current_season_start) + 1
+        years_left = (final_start_year - current_season_start)
     
     return {
         "years_left": years_left,
