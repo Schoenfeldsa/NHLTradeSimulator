@@ -1,135 +1,109 @@
-import requests
-from bs4 import BeautifulSoup
-import json
+#!/usr/bin/env python3
+import os
 import time
+import json
+from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright
 
-def scrape_players():
-    """
-    Scrapes the main player listing page to get basic player info
-    and constructs a contract details URL for each player.
-    """
-    url = "https://www.spotrac.com/nhl/rankings/player/_/year/2024/sort/contract_average/"
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, "html.parser")
-    
-    # Select all player rows from the list-group.
-    rows = soup.select("ul.list-group li.list-group-item")
-    
+# ─── Make sure JSON is always written beside this script ────────────────────
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+def scrape_players(page):
+    RANKINGS = (
+        "https://www.spotrac.com/nhl/rankings/player/"
+        "_/year/2025/sort/contract_average/"
+    )
+    # Wait until basic HTML is there (faster than full networkidle)
+    page.goto(RANKINGS, wait_until="domcontentloaded")
+    page.wait_for_selector("ul.list-group li.list-group-item")
+    soup = BeautifulSoup(page.content(), "html.parser")
+
     players = []
-    for row in rows:
-        # Get the player's name and the link from the <a> element.
-        name_tag = row.select_one("div.text-body div.link a")
-        if not name_tag:
+    for row in soup.select("ul.list-group li.list-group-item"):
+        a = row.select_one("div.text-body div.link a")
+        if not a:
             continue
-        name = name_tag.get_text(strip=True)
-        
-        # "https://www.spotrac.com/redirect/player/20276"
-        player_link = name_tag.get("href")
-        
-        # Extract player id from the URL.
-        player_id = None
-        parts = player_link.split("/")
-        for part in parts:
-            if part.isdigit():
-                player_id = part
-                break
-        
-        # Create a slug from the player's name, e.g. "Auston Matthews" => "auston-matthews"
+        name = a.get_text(strip=True)
+        href = a["href"]
+        pid  = next((p for p in href.split("/") if p.isdigit()), None)
         slug = name.lower().replace(" ", "-")
-        
-        # Construct the contract details URL.
-        # "https://www.spotrac.com/nhl/player/_/id/{player_id}/{slug}/contract/cash"
-        if player_id:
-            contract_url = f"https://www.spotrac.com/nhl/player/_/id/{player_id}/{slug}/contract/cash"
-        else:
-            contract_url = None
-        
-        # Optionally, you can also grab other info (team, salary from listing)
+        url  = (
+            f"https://www.spotrac.com/nhl/player/_/id/{pid}/{slug}/contract/cash"
+            if pid else None
+        )
+
         team_tag = row.select_one("div.text-body small")
-        team = team_tag.get_text(strip=True) if team_tag else None
-        salary_tag = row.select_one("span.medium")
-        salary = salary_tag.get_text(strip=True) if salary_tag else None
-        
+        sal_tag  = row.select_one("span.medium")
         players.append({
-            "name": name,
-            "team": team,
-            "salary": salary,
-            "contract_url": contract_url
+            "name":         name,
+            "team":         team_tag.get_text(strip=True) if team_tag else None,
+            "salary":       sal_tag.get_text(strip=True)  if sal_tag  else None,
+            "contract_url": url
         })
     return players
 
-def scrape_contract_details(contract_url):
+def scrape_contract(page, url, timeout=30):
     """
-    Scrapes the contract breakdown table from a given player's contract page.
-    Returns a list of dictionaries (one per table row).
+    Navigate to the cash page, then poll up to `timeout` seconds for
+    the <table> inside the active tab pane.
     """
-    response = requests.get(contract_url)
-    soup = BeautifulSoup(response.text, "html.parser")
-    
-    # Find the contract table by its class
-    contract_table = soup.find("table", class_="table table-white premium contract-breakdown")
-    if not contract_table:
-        print(f"Contract table not found at {contract_url}")
+    page.goto(url, wait_until="domcontentloaded")
+    deadline = time.time() + timeout
+    table = None
+
+    while time.time() < deadline:
+        soup = BeautifulSoup(page.content(), "html.parser")
+        table = soup.select_one("div.tab-pane.show.active table.contract-breakdown")
+        if table:
+            break
+        time.sleep(1)
+
+    if not table:
+        print(f"⚠️  Timed out waiting for table at {url}")
         return None
 
-    # Extract headers from the table header (<thead>)
-    headers = []
-    thead = contract_table.find("thead")
-    if thead:
-        header_row = thead.find("tr")
-        for th in header_row.find_all("th"):
-            headers.append(th.get_text(strip=True))
-    else:
-        print("No headers found in the contract table.")
+    # Extract headers
+    headers = [th.get_text(strip=True) for th in table.select("thead th")]
 
-    # Extract rows from the table body (<tbody>)
-    contract_data = []
-    tbody = contract_table.find("tbody")
-    if tbody:
-        for tr in tbody.find_all("tr"):
-            tds = tr.find_all("td")
-            if not tds:
+    # Extract rows
+    data = []
+    for tr in table.select("tbody tr"):
+        cells = [td.get_text(strip=True) for td in tr.find_all("td")]
+        if len(cells) < len(headers):
+            cells += [""] * (len(headers) - len(cells))
+        data.append(dict(zip(headers, cells)))
+
+    return data
+
+def main():
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page    = browser.new_page()
+
+        print("🕸️  Scraping player list…")
+        players = scrape_players(page)
+
+        all_contracts = {}
+        for info in players:
+            url = info["contract_url"]
+            if not url:
                 continue
-            row_data = [td.get_text(strip=True) for td in tds]
-            # Pad row_data if it's shorter than headers
-            if len(row_data) < len(headers):
-                row_data += [""] * (len(headers) - len(row_data))
-            contract_data.append(dict(zip(headers, row_data)))
-    else:
-        print("No table body found in the contract table.")
-    
-    return contract_data
+            print("→", info["name"], "@", url)
+            cdata = scrape_contract(page, url, timeout=30)
+            if cdata:
+                all_contracts[info["name"]] = {
+                    "team":               info["team"],
+                    "salary":             info["salary"],
+                    "contract_breakdown": cdata
+                }
+            time.sleep(1)
 
-def scrape_all_contracts():
-    """
-    Loops over every player from the main listing, scrapes their contract details,
-    and returns a dictionary mapping player names to their contract breakdown.
-    """
-    players = scrape_players()
-    all_contracts = {}
-    for player in players:
-        contract_url = player.get("contract_url")
-        if not contract_url:
-            print(f"Skipping {player['name']} (no contract URL)")
-            continue
-        print(f"Scraping contract for {player['name']} at {contract_url}")
-        contract_details = scrape_contract_details(contract_url)
-        if contract_details:
-            all_contracts[player["name"]] = {
-                "basic_info": {
-                    "team": player.get("team"),
-                    "salary": player.get("salary")
-                },
-                "contract_breakdown": contract_details
-            }
-        else:
-            print(f"Contract details not found for {player['name']}")
-        # Sleep a short while to be respectful to the server.
-        time.sleep(1)
-    return all_contracts
+        browser.close()
+
+    out_path = os.path.join(os.getcwd(), "all_contracts.json")
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(all_contracts, f, indent=2)
+    print(f"✅  Saved {len(all_contracts)} players to {out_path}")
 
 if __name__ == "__main__":
-    all_contracts = scrape_all_contracts()
-    with open("all_contracts.json", "w", encoding="utf-8") as f:
-        json.dump(all_contracts, f, indent=2)
-    print("All contract data saved to all_contracts.json")
+    main()

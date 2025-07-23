@@ -1,84 +1,70 @@
+#!/usr/bin/env python3
+import os
+import json
 import requests
 from bs4 import BeautifulSoup
-import json
+
+# ─── Make sure JSON lands beside this script ────────────────────────────────
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+# A real‐browser User‑Agent to avoid minimal/bot HTML
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/115.0.0.0 Safari/537.36"
+    )
+}
 
 def scrape_nhl_team_caps():
-    # Replace this URL with the specific page you want to scrape
+    """
+    Scrape https://www.spotrac.com/nhl/cap/,
+    extract the team cap table into a list of dicts.
+    """
     url = "https://www.spotrac.com/nhl/cap/"
-    
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, "html.parser")
+    resp = requests.get(url, headers=HEADERS)
+    resp.raise_for_status()
 
-    # 1. Find the table by its class
+    soup = BeautifulSoup(resp.text, "html.parser")
     table = soup.find("table", class_="table dataTable premium")
     if not table:
-        print("Could not find the team cap tracker table.")
+        print("❌ Could not find the team cap table.")
         return []
 
-    # 2. Locate the table body (<tbody>)
-    tbody = table.find("tbody")
-    if not tbody:
-        print("No table body found.")
-        return []
+    # Dynamically pull the column names
+    headers = [th.get_text(strip=True) for th in table.select("thead th")]
 
-    # 3. Iterate over each row <tr> in the table body
-    rows = tbody.find_all("tr", recursive=False)
-
-    all_teams_data = []
-    for row in rows:
-        # Each <td> is one column in the row
-        cols = row.find_all("td")
-        if len(cols) < 13:
-            # Skip rows that don't have enough columns
+    teams = []
+    for tr in table.select("tbody tr"):
+        cells = [td.get_text(strip=True) for td in tr.select("td")]
+        if not cells:
             continue
+        # Pad/truncate to match headers, if necessary
+        if len(cells) < len(headers):
+            cells += [""] * (len(headers) - len(cells))
+        elif len(cells) > len(headers):
+            cells = cells[: len(headers)]
 
-        # Extract data from each column by index
-        rank = cols[0].get_text(strip=True)
-        
-        # Team name is typically in the 2nd column; it may contain an <a> with the text
-        # e.g., "SJS" after an <img> tag
-        team = cols[1].get_text(strip=True)  # e.g., "SJS"
+        # Build a dict mapping header->cell
+        team_data = dict(zip(headers, cells))
+        teams.append(team_data)
 
-        record = cols[2].get_text(strip=True)  # e.g., "20-43-9 (49)"
-        players_active = cols[3].get_text(strip=True)  # e.g., "28 / 23"
-        players_retained = cols[4].get_text(strip=True)  # e.g., "5 / 3"
-        players_total = cols[5].get_text(strip=True)  # e.g., "62 / 50"
-        avg_age = cols[6].get_text(strip=True)  # e.g., "25.5"
-        cap_space = cols[7].get_text(strip=True)  # e.g., "$23,209,573"
-        total_cap = cols[8].get_text(strip=True)  # e.g., "$64,790,427"
-        ltir = cols[9].get_text(strip=True)  # e.g., "-"
-        active = cols[10].get_text(strip=True)  # e.g., "$45,286,333"
-        injured = cols[11].get_text(strip=True)  # e.g., "$10,750,000"
-        injured_lt = cols[12].get_text(strip=True)  # e.g., "-"
+    return teams
 
-        team_data = {
-            "rank": rank,
-            "team": team,
-            "record": record,
-            "players_active": players_active,
-            "players_retained": players_retained,
-            "players_total": players_total,
-            "avg_age": avg_age,
-            "cap_space": cap_space,
-            "total_cap": total_cap,
-            "ltir_adjustment": ltir,
-            "active_cap": active,
-            "injured_cap": injured,
-            "injured_long_term_cap": injured_lt
-        }
-        all_teams_data.append(team_data)
+def main():
+    data = scrape_nhl_team_caps()
+    print(f"Found {len(data)} teams in the NHL cap table.\n")
 
-    return all_teams_data
+    # Print a sample of the first 5 teams
+    for team in data[:5]:
+        print(team)
+    print()
+
+    # Write out to JSON
+    out_file = "nhl_team_caps.json"
+    with open(out_file, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+    print(f"✅ Saved all team cap data to {out_file}")
 
 if __name__ == "__main__":
-    data = scrape_nhl_team_caps()
-    print(f"Found {len(data)} teams.")
-    
-    # Print the first few teams
-    for team_info in data[:5]:
-        print(team_info)
-    
-    # Optionally, write to JSON
-    with open("nhl_team_caps.json", "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
-    print("Saved data to nhl_team_caps.json")
+    main()

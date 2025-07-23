@@ -207,7 +207,7 @@ def simulate_trade_api():
     player_a = players_data[player_a_name]
     player_b = players_data[player_b_name]
 
-    result = simulate_trade(player_a, player_b, teams_data, league_cap=88000000.0)
+    result = simulate_trade(player_a, player_b, teams_data, league_cap=95500000.0)
     return jsonify(result)
 
 if __name__ == '__main__':
